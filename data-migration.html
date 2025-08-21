@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>データ移行ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h1 class="text-2xl font-bold mb-4">
+                <i class="fas fa-database mr-2"></i>
+                データ移行ツール
+            </h1>
+            
+            <div class="mb-6 p-4 bg-blue-50 rounded">
+                <h2 class="text-lg font-semibold mb-2">このツールの使い方</h2>
+                <ol class="list-decimal list-inside space-y-1">
+                    <li>下のボタンをクリックしてデータを自動インポート</li>
+                    <li>インポート完了後、メインアプリに移動</li>
+                    <li>データが正しく移行されたことを確認</li>
+                </ol>
+            </div>
+            
+            <div id="statusMessage" class="mb-4"></div>
+            
+            <button onclick="migrateData()" class="bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600 transition">
+                <i class="fas fa-download mr-2"></i>
+                データを自動インポート
+            </button>
+            
+            <a href="/Yuzu-project/" class="inline-block mt-4 bg-green-500 text-white px-6 py-3 rounded hover:bg-green-600 transition">
+                <i class="fas fa-home mr-2"></i>
+                メインアプリに移動
+            </a>
+        </div>
+        
+        <div class="mt-6 bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">移行されるデータ</h2>
+            <div id="dataPreview" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <script>
+        // 移行データ（既存のexport-data.jsonから）
+        const migrationData = {
+            "subjects": [
+                {"id":1,"name":"地理白地図（1265語）","target_questions":1265,"deadline":"2026-08-16","unit":"ページ","order_index":1,"created_at":"2025-08-16T14:14:06"},
+                {"id":2,"name":"白チャA","target_questions":113,"deadline":"2025-09-09","unit":"問","order_index":2,"created_at":"2025-08-16T14:14:06"},
+                {"id":3,"name":"白チャⅡ","target_questions":209,"deadline":"2025-08-23","unit":"問","order_index":3,"created_at":"2025-08-16T14:14:06"},
+                {"id":4,"name":"白チャB","target_questions":60,"deadline":"2025-09-09","unit":"問","order_index":4,"created_at":"2025-08-16T14:14:06"},
+                {"id":5,"name":"地理白地図復習","target_questions":999,"deadline":"2026-03-11","unit":"ページ","order_index":5,"created_at":"2025-08-16T14:14:06"},
+                {"id":6,"name":"白チャ復習","target_questions":999,"deadline":"2026-03-11","unit":"問","order_index":6,"created_at":"2025-08-16T14:14:06"},
+                {"id":7,"name":"ネクステ文法復習","target_questions":9999,"deadline":"2026-03-11","unit":"問","order_index":7,"created_at":"2025-08-16T14:14:06"},
+                {"id":8,"name":"ネクステ語法","target_questions":228,"deadline":"2025-09-11","unit":"問","order_index":8,"created_at":"2025-08-16T14:14:06"},
+                {"id":9,"name":"ネクステ","target_questions":514,"deadline":"2025-08-09","unit":"問","order_index":9,"created_at":"2025-08-16T14:14:06"},
+                {"id":10,"name":"ターゲット1900","target_questions":1900,"deadline":"2025-08-09","unit":"個","order_index":10,"created_at":"2025-08-16T14:14:06"},
+                {"id":11,"name":"地理B一問一答⭐⭐⭐","target_questions":1789,"deadline":"2025-08-09","unit":"問","order_index":11,"created_at":"2025-08-16T14:14:06"},
+                {"id":12,"name":"白チャI","target_questions":155,"deadline":"2025-08-09","unit":"問","order_index":12,"created_at":"2025-08-16T14:14:06"},
+                {"id":13,"name":"白チャC","target_questions":66,"deadline":"2025-09-09","unit":"問","order_index":13,"created_at":"2025-08-16T14:14:06"}
+            ],
+            "dailyProgress": [
+                {"id":266,"subject_id":1,"date":"2025-07-01","completed_count":100,"created_at":"2025-08-16T14:14:09"},
+                {"id":267,"subject_id":1,"date":"2025-07-15","completed_count":150,"created_at":"2025-08-16T14:14:09"},
+                {"id":268,"subject_id":1,"date":"2025-08-01","completed_count":200,"created_at":"2025-08-16T14:14:09"},
+                {"id":269,"subject_id":2,"date":"2025-07-01","completed_count":10,"created_at":"2025-08-16T14:14:09"},
+                {"id":270,"subject_id":2,"date":"2025-07-15","completed_count":25,"created_at":"2025-08-16T14:14:09"},
+                {"id":271,"subject_id":2,"date":"2025-08-01","completed_count":40,"created_at":"2025-08-16T14:14:09"},
+                {"id":272,"subject_id":3,"date":"2025-07-01","completed_count":20,"created_at":"2025-08-16T14:14:09"},
+                {"id":273,"subject_id":3,"date":"2025-07-15","completed_count":50,"created_at":"2025-08-16T14:14:09"},
+                {"id":274,"subject_id":3,"date":"2025-08-01","completed_count":80,"created_at":"2025-08-16T14:14:09"},
+                {"id":275,"subject_id":10,"date":"2025-07-01","completed_count":100,"created_at":"2025-08-16T14:14:09"},
+                {"id":276,"subject_id":10,"date":"2025-07-15","completed_count":300,"created_at":"2025-08-16T14:14:09"},
+                {"id":277,"subject_id":10,"date":"2025-08-01","completed_count":500,"created_at":"2025-08-16T14:14:09"},
+                {"id":278,"subject_id":11,"date":"2025-07-01","completed_count":150,"created_at":"2025-08-16T14:14:09"},
+                {"id":279,"subject_id":11,"date":"2025-07-15","completed_count":350,"created_at":"2025-08-16T14:14:09"},
+                {"id":280,"subject_id":11,"date":"2025-08-01","completed_count":600,"created_at":"2025-08-16T14:14:09"}
+            ]
+        };
+
+        // ページロード時にデータプレビューを表示
+        document.addEventListener('DOMContentLoaded', function() {
+            showDataPreview();
+        });
+
+        function showDataPreview() {
+            const preview = document.getElementById('dataPreview');
+            const totalProgress = migrationData.dailyProgress.reduce((sum, p) => sum + p.completed_count, 0);
+            
+            preview.innerHTML = `
+                <div class="p-3 bg-gray-50 rounded">
+                    <p><strong>科目数:</strong> ${migrationData.subjects.length}科目</p>
+                    <p><strong>進捗記録数:</strong> ${migrationData.dailyProgress.length}件</p>
+                    <p><strong>総進捗:</strong> ${totalProgress}問/ページ/個</p>
+                </div>
+                <div class="mt-3">
+                    <h3 class="font-semibold mb-2">科目一覧:</h3>
+                    <ul class="list-disc list-inside space-y-1">
+                        ${migrationData.subjects.map(s => `
+                            <li>${s.name} (目標: ${s.target_questions}${s.unit})</li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        function migrateData() {
+            const statusDiv = document.getElementById('statusMessage');
+            
+            try {
+                // 既存データをバックアップ
+                const existingSubjects = localStorage.getItem('studySubjects');
+                const existingProgress = localStorage.getItem('studyProgress');
+                
+                if (existingSubjects || existingProgress) {
+                    const backup = {
+                        subjects: existingSubjects ? JSON.parse(existingSubjects) : [],
+                        progress: existingProgress ? JSON.parse(existingProgress) : [],
+                        backupDate: new Date().toISOString()
+                    };
+                    localStorage.setItem('studyBackup', JSON.stringify(backup));
+                    statusDiv.innerHTML = `
+                        <div class="p-3 bg-yellow-100 text-yellow-800 rounded mb-2">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            既存データをバックアップしました
+                        </div>
+                    `;
+                }
+                
+                // 新しいデータを保存
+                localStorage.setItem('studySubjects', JSON.stringify(migrationData.subjects));
+                localStorage.setItem('studyProgress', JSON.stringify(migrationData.dailyProgress));
+                
+                statusDiv.innerHTML += `
+                    <div class="p-3 bg-green-100 text-green-800 rounded">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        データ移行が完了しました！メインアプリに移動してください。
+                    </div>
+                `;
+                
+                // 3秒後に自動的にメインアプリに移動
+                setTimeout(() => {
+                    window.location.href = '/Yuzu-project/';
+                }, 3000);
+                
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="p-3 bg-red-100 text-red-800 rounded">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        エラーが発生しました: ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
