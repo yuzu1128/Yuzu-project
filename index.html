@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学習進捗管理ダッシュボード（完全版）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.35s;
+            transform-origin: 50% 50%;
+        }
+        
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        /* 共有モード時の無効化スタイル */
+        .shared-mode-disabled {
+            pointer-events: none;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .shared-mode-hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4 max-w-6xl">
+        <!-- ヘッダー -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-graduation-cap mr-2"></i>
+                    学習進捗管理ダッシュボード
+                </h1>
+                <div class="flex items-center space-x-4">
+                    <!-- 共有モード表示 -->
+                    <div id="sharedModeIndicator" class="hidden bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm">
+                        <i class="fas fa-eye mr-1"></i>
+                        閲覧専用モード
+                    </div>
+                    
+                    <!-- データ管理ボタン -->
+                    <button id="dataManageBtn" onclick="openDataModal()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                        <i class="fas fa-database mr-2"></i>
+                        データ管理
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 進捗サマリー -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">今日の進捗</p>
+                        <p class="text-2xl font-bold text-blue-600" id="todayProgress">0問</p>
+                    </div>
+                    <i class="fas fa-calendar-day text-3xl text-blue-200"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">今週の進捗</p>
+                        <p class="text-2xl font-bold text-green-600" id="weekProgress">0問</p>
+                    </div>
+                    <i class="fas fa-calendar-week text-3xl text-green-200"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">総進捗</p>
+                        <p class="text-2xl font-bold text-purple-600" id="totalProgress">0問</p>
+                    </div>
+                    <i class="fas fa-chart-line text-3xl text-purple-200"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 科目リスト -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">
+                    <i class="fas fa-books mr-2"></i>
+                    科目一覧
+                </h2>
+                <button id="addSubjectBtn" onclick="openAddSubjectModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">
+                    <i class="fas fa-plus mr-2"></i>
+                    科目追加
+                </button>
+            </div>
+            
+            <div id="subjectsList" class="space-y-4">
+                <!-- 科目カードがここに動的に追加される -->
+            </div>
+        </div>
+
+        <!-- グラフエリア -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold mb-4">
+                    <i class="fas fa-chart-bar mr-2"></i>
+                    日別進捗
+                </h3>
+                <canvas id="dailyChart"></canvas>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold mb-4">
+                    <i class="fas fa-chart-pie mr-2"></i>
+                    科目別達成率
+                </h3>
+                <canvas id="completionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 科目追加モーダル -->
+    <div id="addSubjectModal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="modal-backdrop absolute inset-0" onclick="closeAddSubjectModal()"></div>
+        <div class="bg-white rounded-lg p-6 w-96 relative z-10 slide-up">
+            <h3 class="text-xl font-semibold mb-4">新しい科目を追加</h3>
+            <form onsubmit="addSubject(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">科目名</label>
+                    <input type="text" id="subjectName" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">目標問題数</label>
+                    <input type="number" id="targetQuestions" required min="1" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">単位</label>
+                    <select id="unit" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="問">問</option>
+                        <option value="ページ">ページ</option>
+                        <option value="章">章</option>
+                        <option value="時間">時間</option>
+                    </select>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">期限（オプション）</label>
+                    <input type="date" id="deadline" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeAddSubjectModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                        キャンセル
+                    </button>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        追加
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- データ管理モーダル -->
+    <div id="dataModal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="modal-backdrop absolute inset-0" onclick="closeDataModal()"></div>
+        <div class="bg-white rounded-lg p-6 w-96 relative z-10 slide-up">
+            <h3 class="text-xl font-semibold mb-4">データ管理</h3>
+            
+            <div class="space-y-4">
+                <!-- 共有URL生成 -->
+                <div class="border rounded-lg p-4">
+                    <h4 class="font-medium mb-2">
+                        <i class="fas fa-share-alt mr-2"></i>
+                        共有URL生成
+                    </h4>
+                    <p class="text-sm text-gray-600 mb-2">現在のデータを閲覧専用で共有できます</p>
+                    <button onclick="generateShareUrl()" class="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                        共有URLを生成
+                    </button>
+                    <div id="shareUrlDisplay" class="hidden mt-2 p-2 bg-gray-100 rounded text-xs break-all"></div>
+                </div>
+                
+                <!-- データエクスポート -->
+                <div class="border rounded-lg p-4">
+                    <h4 class="font-medium mb-2">
+                        <i class="fas fa-download mr-2"></i>
+                        データエクスポート
+                    </h4>
+                    <button onclick="exportData()" class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        JSONファイルとして保存
+                    </button>
+                </div>
+                
+                <!-- データインポート -->
+                <div class="border rounded-lg p-4">
+                    <h4 class="font-medium mb-2">
+                        <i class="fas fa-upload mr-2"></i>
+                        データインポート
+                    </h4>
+                    <input type="file" id="importFile" accept=".json" class="w-full mb-2">
+                    <button onclick="importData()" class="w-full bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                        データを読み込む
+                    </button>
+                </div>
+                
+                <!-- データリセット -->
+                <div class="border rounded-lg p-4 border-red-200">
+                    <h4 class="font-medium mb-2 text-red-600">
+                        <i class="fas fa-trash-alt mr-2"></i>
+                        データリセット
+                    </h4>
+                    <button onclick="resetData()" class="w-full bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                        すべてのデータを削除
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex justify-end mt-4">
+                <button onclick="closeDataModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let subjects = [];
+        let dailyProgress = [];
+        let charts = {};
+        let isSharedMode = false;
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        // アプリケーション初期化
+        function initializeApp() {
+            // URLパラメータチェック
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedData = urlParams.get('data');
+            
+            if (sharedData) {
+                // 共有モードで起動
+                isSharedMode = true;
+                try {
+                    const decodedData = JSON.parse(atob(sharedData));
+                    subjects = decodedData.subjects || [];
+                    dailyProgress = decodedData.dailyProgress || [];
+                    
+                    // 共有モードの表示設定
+                    document.getElementById('sharedModeIndicator').classList.remove('hidden');
+                    
+                    // 編集機能を無効化
+                    disableEditingFeatures();
+                    
+                    showNotification('共有データを読み込みました（閲覧専用）', 'info');
+                } catch (error) {
+                    console.error('共有データの読み込みに失敗:', error);
+                    showNotification('共有データの読み込みに失敗しました', 'error');
+                    loadDataFromLocalStorage();
+                }
+            } else {
+                // 通常モード
+                loadDataFromLocalStorage();
+            }
+            
+            updateDisplay();
+            initCharts();
+        }
+
+        // 編集機能の無効化
+        function disableEditingFeatures() {
+            // ボタンを無効化
+            const editButtons = [
+                'addSubjectBtn',
+                'dataManageBtn'
+            ];
+            
+            editButtons.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) {
+                    btn.classList.add('shared-mode-disabled');
+                    btn.disabled = true;
+                }
+            });
+            
+            // データ管理ボタンのテキストを変更
+            const dataBtn = document.getElementById('dataManageBtn');
+            if (dataBtn) {
+                dataBtn.innerHTML = '<i class="fas fa-eye mr-2"></i>閲覧専用';
+            }
+        }
+
+        // ローカルストレージからデータ読み込み
+        function loadDataFromLocalStorage() {
+            const savedSubjects = localStorage.getItem('studySubjects');
+            const savedProgress = localStorage.getItem('studyProgress');
+            
+            if (savedSubjects) {
+                subjects = JSON.parse(savedSubjects);
+            } else {
+                // サンプルデータ
+                subjects = [
+                    {
+                        id: Date.now(),
+                        name: "数学",
+                        target_questions: 100,
+                        unit: "問",
+                        deadline: null,
+                        order_index: 0,
+                        created_at: new Date().toISOString()
+                    }
+                ];
+            }
+            
+            if (savedProgress) {
+                dailyProgress = JSON.parse(savedProgress);
+            } else {
+                dailyProgress = [];
+            }
+        }
+
+        // データ保存
+        function saveData() {
+            if (!isSharedMode) {
+                localStorage.setItem('studySubjects', JSON.stringify(subjects));
+                localStorage.setItem('studyProgress', JSON.stringify(dailyProgress));
+            }
+        }
+
+        // 科目追加
+        function addSubject(event) {
+            event.preventDefault();
+            
+            if (isSharedMode) {
+                showNotification('閲覧専用モードでは編集できません', 'warning');
+                return;
+            }
+            
+            const newSubject = {
+                id: Date.now(),
+                name: document.getElementById('subjectName').value,
+                target_questions: parseInt(document.getElementById('targetQuestions').value),
+                unit: document.getElementById('unit').value,
+                deadline: document.getElementById('deadline').value || null,
+                order_index: subjects.length,
+                created_at: new Date().toISOString()
+            };
+            
+            subjects.push(newSubject);
+            saveData();
+            updateDisplay();
+            closeAddSubjectModal();
+            showNotification('科目を追加しました', 'success');
+        }
+
+        // 進捗更新
+        function updateProgress(subjectId, increment) {
+            if (isSharedMode) {
+                showNotification('閲覧専用モードでは編集できません', 'warning');
+                return;
+            }
+            
+            const today = new Date().toISOString().split('T')[0];
+            
+            let todayProgress = dailyProgress.find(p => 
+                p.subject_id === subjectId && p.date === today
+            );
+            
+            if (todayProgress) {
+                todayProgress.completed_count += increment;
+                if (todayProgress.completed_count < 0) {
+                    todayProgress.completed_count = 0;
+                }
+            } else {
+                if (increment > 0) {
+                    dailyProgress.push({
+                        id: Date.now(),
+                        subject_id: subjectId,
+                        date: today,
+                        completed_count: increment,
+                        created_at: new Date().toISOString()
+                    });
+                }
+            }
+            
+            saveData();
+            updateDisplay();
+        }
+
+        // 科目削除
+        function deleteSubject(subjectId) {
+            if (isSharedMode) {
+                showNotification('閲覧専用モードでは編集できません', 'warning');
+                return;
+            }
+            
+            if (confirm('この科目を削除してもよろしいですか？')) {
+                subjects = subjects.filter(s => s.id !== subjectId);
+                dailyProgress = dailyProgress.filter(p => p.subject_id !== subjectId);
+                saveData();
+                updateDisplay();
+                showNotification('科目を削除しました', 'success');
+            }
+        }
+
+        // 表示更新
+        function updateDisplay() {
+            updateSubjectsList();
+            updateSummary();
+            updateCharts();
+        }
+
+        // 科目リスト更新
+        function updateSubjectsList() {
+            const container = document.getElementById('subjectsList');
+            
+            if (subjects.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-inbox text-4xl mb-2"></i>
+                        <p>科目がまだ登録されていません</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = subjects.map(subject => {
+                const totalCompleted = dailyProgress
+                    .filter(p => p.subject_id === subject.id)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                
+                const percentage = Math.min(100, Math.round((totalCompleted / subject.target_questions) * 100));
+                
+                const today = new Date().toISOString().split('T')[0];
+                const todayCompleted = dailyProgress
+                    .filter(p => p.subject_id === subject.id && p.date === today)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                
+                const deleteButtonHtml = !isSharedMode ? `
+                    <button onclick="deleteSubject(${subject.id})" 
+                        class="text-red-500 hover:text-red-700">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ` : '';
+                
+                const progressButtonsHtml = !isSharedMode ? `
+                    <div class="flex items-center space-x-2">
+                        <button onclick="updateProgress(${subject.id}, -1)" 
+                            class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <span class="font-semibold px-3">${todayCompleted}</span>
+                        <button onclick="updateProgress(${subject.id}, 1)" 
+                            class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                ` : `
+                    <div class="text-center">
+                        <span class="font-semibold">${todayCompleted}</span>
+                    </div>
+                `;
+                
+                return `
+                    <div class="border rounded-lg p-4 hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="font-semibold text-lg">${subject.name}</h3>
+                                <p class="text-sm text-gray-600">
+                                    目標: ${subject.target_questions}${subject.unit} | 
+                                    完了: ${totalCompleted}${subject.unit}
+                                </p>
+                            </div>
+                            ${deleteButtonHtml}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="flex justify-between text-sm mb-1">
+                                <span>進捗率</span>
+                                <span class="font-semibold">${percentage}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                                    style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">今日の進捗</span>
+                            ${progressButtonsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // サマリー更新
+        function updateSummary() {
+            const today = new Date().toISOString().split('T')[0];
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            const weekAgoStr = weekAgo.toISOString().split('T')[0];
+            
+            const todayTotal = dailyProgress
+                .filter(p => p.date === today)
+                .reduce((sum, p) => sum + p.completed_count, 0);
+            
+            const weekTotal = dailyProgress
+                .filter(p => p.date >= weekAgoStr)
+                .reduce((sum, p) => sum + p.completed_count, 0);
+            
+            const total = dailyProgress
+                .reduce((sum, p) => sum + p.completed_count, 0);
+            
+            document.getElementById('todayProgress').textContent = `${todayTotal}問`;
+            document.getElementById('weekProgress').textContent = `${weekTotal}問`;
+            document.getElementById('totalProgress').textContent = `${total}問`;
+        }
+
+        // グラフ初期化
+        function initCharts() {
+            // 日別進捗グラフ
+            const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+            charts.daily = new Chart(dailyCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '完了数',
+                        data: [],
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // 科目別達成率グラフ
+            const completionCtx = document.getElementById('completionChart').getContext('2d');
+            charts.completion = new Chart(completionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.5)',
+                            'rgba(16, 185, 129, 0.5)',
+                            'rgba(251, 146, 60, 0.5)',
+                            'rgba(168, 85, 247, 0.5)',
+                            'rgba(251, 113, 133, 0.5)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
+        }
+
+        // グラフ更新
+        function updateCharts() {
+            // 日別進捗データ
+            const last7Days = [];
+            const dailyData = [];
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayLabel = date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+                
+                last7Days.push(dayLabel);
+                
+                const dayTotal = dailyProgress
+                    .filter(p => p.date === dateStr)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                
+                dailyData.push(dayTotal);
+            }
+            
+            charts.daily.data.labels = last7Days;
+            charts.daily.data.datasets[0].data = dailyData;
+            charts.daily.update();
+            
+            // 科目別達成率データ
+            const completionLabels = [];
+            const completionData = [];
+            
+            subjects.forEach(subject => {
+                const total = dailyProgress
+                    .filter(p => p.subject_id === subject.id)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                
+                const percentage = Math.min(100, Math.round((total / subject.target_questions) * 100));
+                
+                completionLabels.push(subject.name);
+                completionData.push(percentage);
+            });
+            
+            charts.completion.data.labels = completionLabels;
+            charts.completion.data.datasets[0].data = completionData;
+            charts.completion.update();
+        }
+
+        // 共有URL生成
+        function generateShareUrl() {
+            if (isSharedMode) {
+                showNotification('閲覧専用モードでは共有URLを生成できません', 'warning');
+                return;
+            }
+            
+            const shareData = {
+                subjects: subjects,
+                dailyProgress: dailyProgress,
+                timestamp: new Date().toISOString()
+            };
+            
+            const encodedData = btoa(JSON.stringify(shareData));
+            const currentUrl = window.location.origin + window.location.pathname;
+            const shareUrl = `${currentUrl}?data=${encodedData}`;
+            
+            const display = document.getElementById('shareUrlDisplay');
+            display.textContent = shareUrl;
+            display.classList.remove('hidden');
+            
+            // クリップボードにコピー
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showNotification('共有URLをクリップボードにコピーしました', 'success');
+            });
+        }
+
+        // データエクスポート
+        function exportData() {
+            const exportData = {
+                subjects: subjects,
+                dailyProgress: dailyProgress,
+                exportDate: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `study-progress-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            
+            showNotification('データをエクスポートしました', 'success');
+        }
+
+        // データインポート
+        function importData() {
+            if (isSharedMode) {
+                showNotification('閲覧専用モードではインポートできません', 'warning');
+                return;
+            }
+            
+            const fileInput = document.getElementById('importFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showNotification('ファイルを選択してください', 'warning');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    subjects = importedData.subjects || [];
+                    dailyProgress = importedData.dailyProgress || [];
+                    saveData();
+                    updateDisplay();
+                    closeDataModal();
+                    showNotification('データをインポートしました', 'success');
+                } catch (error) {
+                    showNotification('ファイルの読み込みに失敗しました', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // データリセット
+        function resetData() {
+            if (isSharedMode) {
+                showNotification('閲覧専用モードではリセットできません', 'warning');
+                return;
+            }
+            
+            if (confirm('すべてのデータを削除してもよろしいですか？この操作は取り消せません。')) {
+                subjects = [];
+                dailyProgress = [];
+                saveData();
+                updateDisplay();
+                closeDataModal();
+                showNotification('データをリセットしました', 'success');
+            }
+        }
+
+        // モーダル操作
+        function openAddSubjectModal() {
+            if (isSharedMode) {
+                showNotification('閲覧専用モードでは科目を追加できません', 'warning');
+                return;
+            }
+            document.getElementById('addSubjectModal').classList.remove('hidden');
+        }
+
+        function closeAddSubjectModal() {
+            document.getElementById('addSubjectModal').classList.add('hidden');
+            document.getElementById('subjectName').value = '';
+            document.getElementById('targetQuestions').value = '';
+            document.getElementById('deadline').value = '';
+        }
+
+        function openDataModal() {
+            document.getElementById('dataModal').classList.remove('hidden');
+        }
+
+        function closeDataModal() {
+            document.getElementById('dataModal').classList.add('hidden');
+        }
+
+        // 通知表示
+        function showNotification(message, type = 'info') {
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500'
+            };
+            
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 fade-in`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
