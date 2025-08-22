@@ -194,6 +194,10 @@
         function migrateData() {
             const statusDiv = document.getElementById('statusMessage');
             
+            console.log('データ移行開始...');
+            console.log('移行する科目数:', migrationData.subjects.length);
+            console.log('移行する進捗記録数:', migrationData.dailyProgress.length);
+            
             try {
                 // 既存データをバックアップ
                 const existingSubjects = localStorage.getItem('studySubjects');
@@ -215,18 +219,38 @@
                 }
                 
                 // 新しいデータを保存（メインアプリのLocalStorageキーに合わせる）
-                localStorage.setItem('studyDashboardSubjects', JSON.stringify(migrationData.subjects));
-                localStorage.setItem('studyDashboardProgress', JSON.stringify(migrationData.dailyProgress));
+                localStorage.setItem('studySubjects', JSON.stringify(migrationData.subjects));
+                localStorage.setItem('studyProgress', JSON.stringify(migrationData.dailyProgress));
+                
+                // 保存確認
+                const savedSubjects = localStorage.getItem('studySubjects');
+                const savedProgress = localStorage.getItem('studyProgress');
+                
+                if (savedSubjects && savedProgress) {
+                    const subjects = JSON.parse(savedSubjects);
+                    const progress = JSON.parse(savedProgress);
+                    console.log('保存成功 - 科目数:', subjects.length);
+                    console.log('保存成功 - 進捗記録数:', progress.length);
+                } else {
+                    console.error('データ保存に失敗しました');
+                }
                 
                 statusDiv.innerHTML += `
                     <div class="p-3 bg-green-100 text-green-800 rounded">
                         <i class="fas fa-check-circle mr-2"></i>
-                        データ移行が完了しました！メインアプリに移動してください。
+                        データ移行が完了しました！<br>
+                        ${migrationData.subjects.length}科目、${migrationData.dailyProgress.length}件の進捗記録を移行しました。<br>
+                        3秒後にメインアプリに移動します...
                     </div>
                 `;
                 
+                // ボタンを無効化
+                document.getElementById('migrateBtn').disabled = true;
+                document.getElementById('migrateBtn').classList.add('opacity-50', 'cursor-not-allowed');
+                
                 // 3秒後に自動的にメインアプリに移動
                 setTimeout(() => {
+                    console.log('メインアプリに移動します...');
                     window.location.href = './index.html';
                 }, 3000);
                 
