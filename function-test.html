@@ -49,11 +49,11 @@
                             subjects: [{id: 1, name: "テスト科目", target_questions: 100, deadline: "2024-12-31", unit: "問"}],
                             dailyProgress: [{id: 1, subject_id: 1, date: "2024-01-15", completed_count: 10}]
                         };
-                        localStorage.setItem('studyDashboardSubjects', JSON.stringify(testData.subjects));
-                        localStorage.setItem('studyDashboardProgress', JSON.stringify(testData.dailyProgress));
+                        localStorage.setItem('studySubjects', JSON.stringify(testData.subjects));
+                        localStorage.setItem('studyProgress', JSON.stringify(testData.dailyProgress));
                         
-                        const saved1 = JSON.parse(localStorage.getItem('studyDashboardSubjects'));
-                        const saved2 = JSON.parse(localStorage.getItem('studyDashboardProgress'));
+                        const saved1 = JSON.parse(localStorage.getItem('studySubjects'));
+                        const saved2 = JSON.parse(localStorage.getItem('studyProgress'));
                         
                         return saved1.length === 1 && saved2.length === 1;
                     } catch (e) {

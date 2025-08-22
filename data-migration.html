@@ -9,6 +9,12 @@
 </head>
 <body class="bg-gray-100 p-8">
     <div class="max-w-4xl mx-auto">
+        <!-- 重要なお知らせ -->
+        <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
+            <p class="font-bold">📢 最新データ移行ツール</p>
+            <p class="text-sm mt-1">2025年1月22日時点の最新学習データ（13科目、進捗記録含む）</p>
+        </div>
+        
         <div class="bg-white rounded-lg shadow-md p-6">
             <h1 class="text-2xl font-bold mb-4">
                 <i class="fas fa-database mr-2"></i>
@@ -16,17 +22,17 @@
             </h1>
             
             <div class="mb-6 p-4 bg-blue-50 rounded">
-                <h2 class="text-lg font-semibold mb-2">このツールの使い方</h2>
+                <h2 class="text-lg font-semibold mb-2">📋 このツールの使い方</h2>
                 <ol class="list-decimal list-inside space-y-1">
-                    <li>下のボタンをクリックしてデータを自動インポート</li>
-                    <li>インポート完了後、メインアプリに移動</li>
-                    <li>データが正しく移行されたことを確認</li>
+                    <li>下の「データを自動インポート」ボタンをクリック</li>
+                    <li>3秒後にメインアプリに自動移動します</li>
+                    <li>データが正しく表示されていることを確認してください</li>
                 </ol>
             </div>
             
             <div id="statusMessage" class="mb-4"></div>
             
-            <button onclick="migrateData()" class="bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600 transition">
+            <button id="migrateBtn" onclick="confirmAndMigrate()" class="bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600 transition text-lg font-medium">
                 <i class="fas fa-download mr-2"></i>
                 データを自動インポート
             </button>
@@ -44,7 +50,7 @@
     </div>
 
     <script>
-        // 最新の移行データ（2025年1月現在）
+        // 最新の移行データ（2025年1月22日現在）
         const migrationData = {
             "subjects": [
                 {"id":1,"name":"地理白地図（1265語）","target_questions":1265,"deadline":"2025-08-16","unit":"ページ"},
@@ -62,43 +68,55 @@
                 {"id":13,"name":"白チャC","target_questions":66,"deadline":"2025-02-09","unit":"問"}
             ],
             "dailyProgress": [
-                // 地理白地図（1265語） - 合計: 650ページ
+                // 地理白地図（1265語） - 合計: 850ページ
                 {"id":1,"subject_id":1,"date":"2024-12-01","completed_count":50},
                 {"id":2,"subject_id":1,"date":"2024-12-15","completed_count":100},
                 {"id":3,"subject_id":1,"date":"2025-01-01","completed_count":150},
                 {"id":4,"subject_id":1,"date":"2025-01-10","completed_count":200},
                 {"id":5,"subject_id":1,"date":"2025-01-15","completed_count":150},
+                {"id":41,"subject_id":1,"date":"2025-01-18","completed_count":100},
+                {"id":42,"subject_id":1,"date":"2025-01-20","completed_count":100},
                 
                 // 白チャA - 合計: 113問（完了）
                 {"id":6,"subject_id":2,"date":"2024-12-10","completed_count":30},
                 {"id":7,"subject_id":2,"date":"2024-12-20","completed_count":40},
                 {"id":8,"subject_id":2,"date":"2025-01-05","completed_count":43},
                 
-                // 白チャⅡ - 合計: 180問
+                // 白チャⅡ - 合計: 209問（完了） 
                 {"id":9,"subject_id":3,"date":"2024-12-05","completed_count":40},
                 {"id":10,"subject_id":3,"date":"2024-12-25","completed_count":60},
                 {"id":11,"subject_id":3,"date":"2025-01-08","completed_count":80},
+                {"id":43,"subject_id":3,"date":"2025-01-21","completed_count":29},
                 
-                // 白チャB - 合計: 45問
+                // 白チャB - 合計: 60問（完了）
                 {"id":12,"subject_id":4,"date":"2025-01-10","completed_count":25},
                 {"id":13,"subject_id":4,"date":"2025-01-15","completed_count":20},
+                {"id":44,"subject_id":4,"date":"2025-01-22","completed_count":15},
                 
-                // 地理白地図復習 - 合計: 200ページ
+                // 地理白地図復習 - 合計: 350ページ
                 {"id":14,"subject_id":5,"date":"2025-01-12","completed_count":100},
                 {"id":15,"subject_id":5,"date":"2025-01-14","completed_count":100},
+                {"id":45,"subject_id":5,"date":"2025-01-19","completed_count":75},
+                {"id":46,"subject_id":5,"date":"2025-01-21","completed_count":75},
                 
-                // 白チャ復習 - 合計: 150問
+                // 白チャ復習 - 合計: 280問
                 {"id":16,"subject_id":6,"date":"2025-01-11","completed_count":75},
                 {"id":17,"subject_id":6,"date":"2025-01-13","completed_count":75},
+                {"id":47,"subject_id":6,"date":"2025-01-17","completed_count":65},
+                {"id":48,"subject_id":6,"date":"2025-01-20","completed_count":65},
                 
-                // ネクステ文法復習 - 合計: 500問
+                // ネクステ文法復習 - 合計: 850問
                 {"id":18,"subject_id":7,"date":"2025-01-05","completed_count":200},
                 {"id":19,"subject_id":7,"date":"2025-01-10","completed_count":300},
+                {"id":49,"subject_id":7,"date":"2025-01-16","completed_count":175},
+                {"id":50,"subject_id":7,"date":"2025-01-21","completed_count":175},
                 
-                // ネクステ語法 - 合計: 150問
+                // ネクステ語法 - 合計: 228問（完了）
                 {"id":20,"subject_id":8,"date":"2024-12-28","completed_count":50},
                 {"id":21,"subject_id":8,"date":"2025-01-07","completed_count":50},
                 {"id":22,"subject_id":8,"date":"2025-01-14","completed_count":50},
+                {"id":51,"subject_id":8,"date":"2025-01-19","completed_count":40},
+                {"id":52,"subject_id":8,"date":"2025-01-22","completed_count":38},
                 
                 // ネクステ - 合計: 514問（完了）
                 {"id":23,"subject_id":9,"date":"2024-11-20","completed_count":100},
@@ -113,20 +131,23 @@
                 {"id":30,"subject_id":10,"date":"2024-12-15","completed_count":400},
                 {"id":31,"subject_id":10,"date":"2025-01-01","completed_count":400},
                 
-                // 地理B一問一答 - 合計: 1200問
+                // 地理B一問一答 - 合計: 1500問
                 {"id":32,"subject_id":11,"date":"2024-12-01","completed_count":200},
                 {"id":33,"subject_id":11,"date":"2024-12-10","completed_count":300},
                 {"id":34,"subject_id":11,"date":"2024-12-20","completed_count":300},
                 {"id":35,"subject_id":11,"date":"2025-01-05","completed_count":400},
+                {"id":53,"subject_id":11,"date":"2025-01-18","completed_count":150},
+                {"id":54,"subject_id":11,"date":"2025-01-22","completed_count":150},
                 
                 // 白チャI - 合計: 155問（完了）
                 {"id":36,"subject_id":12,"date":"2024-12-08","completed_count":55},
                 {"id":37,"subject_id":12,"date":"2024-12-18","completed_count":50},
                 {"id":38,"subject_id":12,"date":"2025-01-02","completed_count":50},
                 
-                // 白チャC - 合計: 40問
+                // 白チャC - 合計: 55問
                 {"id":39,"subject_id":13,"date":"2025-01-12","completed_count":20},
-                {"id":40,"subject_id":13,"date":"2025-01-14","completed_count":20}
+                {"id":40,"subject_id":13,"date":"2025-01-14","completed_count":20},
+                {"id":55,"subject_id":13,"date":"2025-01-21","completed_count":15}
             ]
         };
 
@@ -261,6 +282,43 @@
                         エラーが発生しました: ${error.message}
                     </div>
                 `;
+            }
+        }
+        
+        // 確認ダイアログを表示してから移行
+        function confirmAndMigrate() {
+            const existingSubjects = localStorage.getItem('studySubjects');
+            const existingProgress = localStorage.getItem('studyProgress');
+            
+            if (existingSubjects || existingProgress) {
+                let message = '⚠️ 既存データが検出されました。\n\n';
+                
+                if (existingSubjects) {
+                    try {
+                        const subjects = JSON.parse(existingSubjects);
+                        message += `現在の科目数: ${subjects.length}科目\n`;
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+                
+                if (existingProgress) {
+                    try {
+                        const progress = JSON.parse(existingProgress);
+                        message += `現在の進捗記録: ${progress.length}件\n`;
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+                
+                message += '\n最新データで上書きしますか？\n※既存データはバックアップされます。';
+                
+                if (confirm(message)) {
+                    migrateData();
+                }
+            } else {
+                // 既存データがない場合はそのまま実行
+                migrateData();
             }
         }
     </script>
