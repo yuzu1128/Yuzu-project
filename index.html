@@ -6,7 +6,7 @@
     <title>学習進捗管理ダッシュボード（完全版）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <style>
         .progress-ring {
@@ -551,8 +551,19 @@
 
         // グラフ初期化
         function initCharts() {
+            // Chart.jsが読み込まれていない場合はスキップ
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded');
+                return;
+            }
+            
             // 日別進捗グラフ
-            const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+            const dailyCanvas = document.getElementById('dailyChart');
+            if (!dailyCanvas) {
+                console.error('Daily chart canvas not found');
+                return;
+            }
+            const dailyCtx = dailyCanvas.getContext('2d');
             charts.daily = new Chart(dailyCtx, {
                 type: 'bar',
                 data: {
@@ -576,7 +587,12 @@
             });
             
             // 科目別達成率グラフ
-            const completionCtx = document.getElementById('completionChart').getContext('2d');
+            const completionCanvas = document.getElementById('completionChart');
+            if (!completionCanvas) {
+                console.error('Completion chart canvas not found');
+                return;
+            }
+            const completionCtx = completionCanvas.getContext('2d');
             charts.completion = new Chart(completionCtx, {
                 type: 'doughnut',
                 data: {
@@ -600,6 +616,12 @@
 
         // グラフ更新
         function updateCharts() {
+            // チャートが初期化されていない場合は何もしない
+            if (!charts.daily || !charts.completion) {
+                console.warn('Charts not initialized yet');
+                return;
+            }
+            
             // 日別進捗データ
             const last7Days = [];
             const dailyData = [];
@@ -619,9 +641,11 @@
                 dailyData.push(dayTotal);
             }
             
-            charts.daily.data.labels = last7Days;
-            charts.daily.data.datasets[0].data = dailyData;
-            charts.daily.update();
+            if (charts.daily && charts.daily.data) {
+                charts.daily.data.labels = last7Days;
+                charts.daily.data.datasets[0].data = dailyData;
+                charts.daily.update();
+            }
             
             // 科目別達成率データ
             const completionLabels = [];
@@ -638,9 +662,11 @@
                 completionData.push(percentage);
             });
             
-            charts.completion.data.labels = completionLabels;
-            charts.completion.data.datasets[0].data = completionData;
-            charts.completion.update();
+            if (charts.completion && charts.completion.data) {
+                charts.completion.data.labels = completionLabels;
+                charts.completion.data.datasets[0].data = completionData;
+                charts.completion.update();
+            }
         }
 
         // 共有URL生成
