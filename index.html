@@ -275,8 +275,18 @@
                 isSharedMode = true;
                 try {
                     const decodedData = JSON.parse(atob(sharedData));
-                    subjects = decodedData.subjects || [];
-                    dailyProgress = decodedData.dailyProgress || [];
+                    
+                    // 圧縮されたデータかどうかチェック
+                    if (decodedData.s && decodedData.p) {
+                        // 圧縮データを展開
+                        const decompressed = decompressData(decodedData);
+                        subjects = decompressed.subjects || [];
+                        dailyProgress = decompressed.dailyProgress || [];
+                    } else {
+                        // 古い形式のデータ（互換性保持）
+                        subjects = decodedData.subjects || [];
+                        dailyProgress = decodedData.dailyProgress || [];
+                    }
                     
                     // 共有モードの表示設定
                     document.getElementById('sharedModeIndicator').classList.remove('hidden');
@@ -506,26 +516,57 @@
                     </div>
                 `;
                 
+                const isComplete = totalCompleted >= subject.target_questions;
+                const remaining = Math.max(0, subject.target_questions - totalCompleted);
+                
+                // 期限までの日数計算
+                const deadline = new Date(subject.deadline);
+                const now = new Date();
+                const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+                const deadlineColor = daysRemaining < 7 ? 'text-red-600' : daysRemaining < 30 ? 'text-yellow-600' : 'text-gray-600';
+                const statusEmoji = isComplete ? '✅' : percentage >= 50 ? '📋' : '📝';
+                
                 return `
-                    <div class="border rounded-lg p-4 hover:shadow-md transition">
+                    <div class="border rounded-lg p-4 hover:shadow-lg transition ${isComplete ? 'bg-green-50 border-green-300' : ''}">
                         <div class="flex justify-between items-start mb-3">
-                            <div>
-                                <h3 class="font-semibold text-lg">${subject.name}</h3>
-                                <p class="text-sm text-gray-600">
-                                    目標: ${subject.target_questions}${subject.unit} | 
-                                    完了: ${totalCompleted}${subject.unit}
+                            <div class="flex-grow">
+                                <h3 class="font-semibold text-lg">${statusEmoji} ${subject.name}</h3>
+                                <p class="text-sm ${deadlineColor}">
+                                    <i class="fas fa-calendar-alt mr-1"></i>
+                                    期限: ${subject.deadline} 
+                                    ${daysRemaining > 0 ? `(残り${daysRemaining}日)` : daysRemaining === 0 ? '(今日まで)' : '(期限切れ)'}
                                 </p>
                             </div>
                             ${deleteButtonHtml}
                         </div>
                         
+                        <div class="grid grid-cols-3 gap-2 mb-3 text-center">
+                            <div class="bg-blue-100 rounded p-2">
+                                <div class="text-xs text-gray-600">目標</div>
+                                <div class="font-bold text-blue-600">${subject.target_questions.toLocaleString()}</div>
+                                <div class="text-xs">${subject.unit}</div>
+                            </div>
+                            <div class="bg-green-100 rounded p-2">
+                                <div class="text-xs text-gray-600">達成</div>
+                                <div class="font-bold text-green-600">${totalCompleted.toLocaleString()}</div>
+                                <div class="text-xs">${subject.unit}</div>
+                            </div>
+                            <div class="bg-orange-100 rounded p-2">
+                                <div class="text-xs text-gray-600">残り</div>
+                                <div class="font-bold text-orange-600">${remaining.toLocaleString()}</div>
+                                <div class="text-xs">${subject.unit}</div>
+                            </div>
+                        </div>
+                        
                         <div class="mb-3">
                             <div class="flex justify-between text-sm mb-1">
                                 <span>進捗率</span>
-                                <span class="font-semibold">${percentage}%</span>
+                                <span class="font-bold ${isComplete ? 'text-green-600' : percentage >= 50 ? 'text-blue-600' : 'text-gray-600'}">
+                                    ${percentage}%
+                                </span>
                             </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="${isComplete ? 'bg-green-500' : percentage >= 50 ? 'bg-blue-500' : 'bg-gray-400'} h-3 rounded-full transition-all duration-500" 
                                     style="width: ${percentage}%"></div>
                             </div>
                         </div>
@@ -688,6 +729,46 @@
             }
         }
 
+        // データ圧縮関数
+        function compressData(data) {
+            // 不要なフィールドを削除してデータを最小化
+            const compressed = {
+                s: data.subjects.map(s => ({
+                    i: s.id,
+                    n: s.name,
+                    t: s.target_questions,
+                    d: s.deadline,
+                    u: s.unit
+                })),
+                p: data.dailyProgress.map(p => ({
+                    i: p.id,
+                    si: p.subject_id,
+                    d: p.date,
+                    c: p.completed_count
+                }))
+            };
+            return compressed;
+        }
+        
+        // データ展開関数
+        function decompressData(compressed) {
+            return {
+                subjects: compressed.s.map(s => ({
+                    id: s.i,
+                    name: s.n,
+                    target_questions: s.t,
+                    deadline: s.d,
+                    unit: s.u
+                })),
+                dailyProgress: compressed.p.map(p => ({
+                    id: p.i,
+                    subject_id: p.si,
+                    date: p.d,
+                    completed_count: p.c
+                }))
+            };
+        }
+        
         // 共有URL生成
         function generateShareUrl() {
             if (isSharedMode) {
@@ -697,21 +778,30 @@
             
             const shareData = {
                 subjects: subjects,
-                dailyProgress: dailyProgress,
-                timestamp: new Date().toISOString()
+                dailyProgress: dailyProgress
             };
             
-            const encodedData = btoa(JSON.stringify(shareData));
+            // データを圧縮
+            const compressed = compressData(shareData);
+            const encodedData = btoa(JSON.stringify(compressed));
             const currentUrl = window.location.origin + window.location.pathname;
             const shareUrl = `${currentUrl}?data=${encodedData}`;
+            
+            // URLの長さをチェック
+            if (shareUrl.length > 8000) {
+                showNotification('\u26a0\ufe0f データが大きすぎるため、一部のブラウザで問題が発生する可能性があります', 'warning');
+            }
             
             const display = document.getElementById('shareUrlDisplay');
             display.textContent = shareUrl;
             display.classList.remove('hidden');
             
+            // URL長さ情報を表示
+            console.log(`共有URL長: ${shareUrl.length}文字`);
+            
             // クリップボードにコピー
             navigator.clipboard.writeText(shareUrl).then(() => {
-                showNotification('共有URLをクリップボードにコピーしました', 'success');
+                showNotification(`共有URLをクリップボードにコピーしました（${shareUrl.length}文字）`, 'success');
             });
         }
 
