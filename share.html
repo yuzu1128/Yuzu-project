@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学習進捗共有ビュー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        .progress-card {
+            transition: all 0.3s ease;
+        }
+        .progress-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
+    <div class="container mx-auto p-4 max-w-6xl">
+        <!-- ヘッダー -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                        <i class="fas fa-chart-line mr-3"></i>
+                        学習進捗共有ビュー
+                    </h1>
+                    <p class="text-gray-600">
+                        <i class="fas fa-clock mr-2"></i>
+                        最終更新: <span id="lastUpdate">-</span>
+                    </p>
+                </div>
+                <div class="text-right">
+                    <div class="bg-blue-100 text-blue-800 px-4 py-2 rounded-full inline-block">
+                        <i class="fas fa-eye mr-2"></i>
+                        閲覧専用モード
+                    </div>
+                    <button onclick="syncData()" class="mt-2 block bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        データ同期
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計サマリー -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">総科目数</p>
+                        <p class="text-2xl font-bold text-blue-600" id="totalSubjects">0</p>
+                    </div>
+                    <i class="fas fa-books text-3xl text-blue-200"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">完了科目</p>
+                        <p class="text-2xl font-bold text-green-600" id="completedSubjects">0</p>
+                    </div>
+                    <i class="fas fa-check-circle text-3xl text-green-200"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">平均進捗率</p>
+                        <p class="text-2xl font-bold text-purple-600" id="avgProgress">0%</p>
+                    </div>
+                    <i class="fas fa-percentage text-3xl text-purple-200"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">総進捗</p>
+                        <p class="text-2xl font-bold text-orange-600" id="totalProgress">0</p>
+                    </div>
+                    <i class="fas fa-tasks text-3xl text-orange-200"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 進行中の科目 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-spinner fa-pulse mr-2 text-blue-500"></i>
+                進行中の科目
+            </h2>
+            <div id="inProgressSubjects" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- 進行中の科目カードがここに表示される -->
+            </div>
+        </div>
+
+        <!-- 完了済みの科目 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-check-circle mr-2 text-green-500"></i>
+                完了済みの科目
+            </h2>
+            <div id="completedSubjectsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- 完了済みの科目カードがここに表示される -->
+            </div>
+        </div>
+
+        <!-- グラフエリア -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+                <h3 class="text-lg font-semibold mb-4">
+                    <i class="fas fa-chart-bar mr-2"></i>
+                    直近7日間の進捗
+                </h3>
+                <canvas id="dailyChart"></canvas>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+                <h3 class="text-lg font-semibold mb-4">
+                    <i class="fas fa-chart-pie mr-2"></i>
+                    科目別達成率
+                </h3>
+                <canvas id="completionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 同期設定モーダル -->
+        <div id="syncModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 w-96">
+                <h3 class="text-xl font-bold mb-4">
+                    <i class="fas fa-cog mr-2"></i>
+                    同期設定
+                </h3>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">共有URL</label>
+                    <textarea id="shareUrlInput" class="w-full border rounded p-2 h-24" placeholder="共有URLを貼り付けてください"></textarea>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="autoSync" class="mr-2">
+                        <span>自動同期を有効にする（30秒ごと）</span>
+                    </label>
+                </div>
+                
+                <div class="flex justify-end gap-2">
+                    <button onclick="closeSyncModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        キャンセル
+                    </button>
+                    <button onclick="saveSyncSettings()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let subjects = [];
+        let dailyProgress = [];
+        let charts = {};
+        let autoSyncInterval = null;
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeShareView();
+        });
+
+        // 共有ビューの初期化
+        function initializeShareView() {
+            // URLパラメータまたはLocalStorageから共有データを読み込む
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedData = urlParams.get('data');
+            
+            if (sharedData) {
+                loadSharedData(sharedData);
+            } else {
+                // LocalStorageから保存された共有URLを読み込む
+                const savedUrl = localStorage.getItem('shareUrl');
+                if (savedUrl) {
+                    const url = new URL(savedUrl);
+                    const data = url.searchParams.get('data');
+                    if (data) {
+                        loadSharedData(data);
+                    }
+                }
+            }
+            
+            // 自動同期の設定を読み込む
+            const autoSync = localStorage.getItem('autoSync') === 'true';
+            if (autoSync) {
+                document.getElementById('autoSync').checked = true;
+                startAutoSync();
+            }
+            
+            initCharts();
+        }
+
+        // 共有データの読み込み
+        function loadSharedData(encodedData) {
+            try {
+                const decodedData = JSON.parse(atob(encodedData));
+                
+                // 圧縮データの展開
+                if (decodedData.s && decodedData.p) {
+                    const decompressed = decompressData(decodedData);
+                    subjects = decompressed.subjects || [];
+                    dailyProgress = decompressed.dailyProgress || [];
+                } else {
+                    subjects = decodedData.subjects || [];
+                    dailyProgress = decodedData.dailyProgress || [];
+                }
+                
+                updateDisplay();
+                updateLastUpdateTime();
+            } catch (error) {
+                console.error('データの読み込みに失敗:', error);
+                alert('共有データの読み込みに失敗しました');
+            }
+        }
+
+        // データ展開関数
+        function decompressData(compressed) {
+            return {
+                subjects: compressed.s.map(s => ({
+                    id: s.i,
+                    name: s.n,
+                    target_questions: s.t,
+                    deadline: s.d,
+                    unit: s.u
+                })),
+                dailyProgress: compressed.p.map(p => ({
+                    id: p.i,
+                    subject_id: p.si,
+                    date: p.d,
+                    completed_count: p.c
+                }))
+            };
+        }
+
+        // 表示更新
+        function updateDisplay() {
+            updateStatistics();
+            updateSubjectLists();
+            updateCharts();
+        }
+
+        // 統計情報の更新
+        function updateStatistics() {
+            const totalSubjectsCount = subjects.length;
+            let completedCount = 0;
+            let totalPercentage = 0;
+            let totalProgressCount = 0;
+
+            subjects.forEach(subject => {
+                const subjectTotal = dailyProgress
+                    .filter(p => p.subject_id === subject.id)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                
+                totalProgressCount += subjectTotal;
+                const percentage = Math.min(100, Math.round((subjectTotal / subject.target_questions) * 100));
+                totalPercentage += percentage;
+                
+                if (percentage === 100) {
+                    completedCount++;
+                }
+            });
+
+            const avgPercentage = totalSubjectsCount > 0 ? Math.round(totalPercentage / totalSubjectsCount) : 0;
+
+            document.getElementById('totalSubjects').textContent = totalSubjectsCount;
+            document.getElementById('completedSubjects').textContent = completedCount;
+            document.getElementById('avgProgress').textContent = avgPercentage + '%';
+            document.getElementById('totalProgress').textContent = totalProgressCount.toLocaleString();
+        }
+
+        // 科目リストの更新（自動並び替え付き）
+        function updateSubjectLists() {
+            const inProgressContainer = document.getElementById('inProgressSubjects');
+            const completedContainer = document.getElementById('completedSubjectsList');
+            
+            // 科目を進捗率で分類
+            const subjectsWithProgress = subjects.map(subject => {
+                const total = dailyProgress
+                    .filter(p => p.subject_id === subject.id)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                const percentage = Math.min(100, Math.round((total / subject.target_questions) * 100));
+                
+                return {
+                    ...subject,
+                    totalCompleted: total,
+                    percentage: percentage,
+                    remaining: Math.max(0, subject.target_questions - total)
+                };
+            });
+
+            // 進行中と完了済みに分ける
+            const inProgress = subjectsWithProgress
+                .filter(s => s.percentage < 100)
+                .sort((a, b) => b.percentage - a.percentage); // 達成率が高い順
+
+            const completed = subjectsWithProgress
+                .filter(s => s.percentage === 100)
+                .sort((a, b) => a.name.localeCompare(b.name)); // 名前順
+
+            // 進行中の科目を表示
+            if (inProgress.length === 0) {
+                inProgressContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">進行中の科目はありません</p>';
+            } else {
+                inProgressContainer.innerHTML = inProgress.map(subject => createSubjectCard(subject)).join('');
+            }
+
+            // 完了済みの科目を表示
+            if (completed.length === 0) {
+                completedContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">完了済みの科目はありません</p>';
+            } else {
+                completedContainer.innerHTML = completed.map(subject => createCompletedCard(subject)).join('');
+            }
+        }
+
+        // 科目カードの作成
+        function createSubjectCard(subject) {
+            const deadline = new Date(subject.deadline);
+            const now = new Date();
+            const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+            const deadlineColor = daysRemaining < 7 ? 'text-red-600' : daysRemaining < 30 ? 'text-yellow-600' : 'text-gray-600';
+            
+            return `
+                <div class="progress-card border rounded-lg p-4 hover:shadow-lg">
+                    <div class="mb-3">
+                        <h3 class="font-bold text-lg">${subject.name}</h3>
+                        <p class="${deadlineColor} text-sm">
+                            <i class="fas fa-calendar-alt mr-1"></i>
+                            期限: ${subject.deadline}
+                            ${daysRemaining > 0 ? `(残り${daysRemaining}日)` : daysRemaining === 0 ? '(今日まで)' : '(期限切れ)'}
+                        </p>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-2 mb-3 text-center">
+                        <div class="bg-blue-50 rounded p-2">
+                            <div class="text-xs text-gray-600">目標</div>
+                            <div class="font-bold text-blue-600">${subject.target_questions.toLocaleString()}</div>
+                            <div class="text-xs">${subject.unit}</div>
+                        </div>
+                        <div class="bg-green-50 rounded p-2">
+                            <div class="text-xs text-gray-600">達成</div>
+                            <div class="font-bold text-green-600">${subject.totalCompleted.toLocaleString()}</div>
+                            <div class="text-xs">${subject.unit}</div>
+                        </div>
+                        <div class="bg-orange-50 rounded p-2">
+                            <div class="text-xs text-gray-600">残り</div>
+                            <div class="font-bold text-orange-600">${subject.remaining.toLocaleString()}</div>
+                            <div class="text-xs">${subject.unit}</div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>進捗率</span>
+                            <span class="font-bold">${subject.percentage}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-blue-400 to-blue-600 h-3 rounded-full transition-all duration-500" 
+                                 style="width: ${subject.percentage}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 完了済み科目カードの作成
+        function createCompletedCard(subject) {
+            return `
+                <div class="progress-card border border-green-300 bg-green-50 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-bold text-lg">${subject.name}</h3>
+                        <span class="text-2xl">✅</span>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-green-600 mb-1">
+                            ${subject.target_questions.toLocaleString()}${subject.unit}
+                        </div>
+                        <div class="text-sm text-green-700">完了</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // グラフの初期化
+        function initCharts() {
+            // 日別進捗グラフ
+            const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+            charts.daily = new Chart(dailyCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '完了数',
+                        data: [],
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // 科目別達成率グラフ
+            const completionCtx = document.getElementById('completionChart').getContext('2d');
+            charts.completion = new Chart(completionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            'rgba(34, 197, 94, 0.8)',
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(168, 85, 247, 0.8)',
+                            'rgba(251, 146, 60, 0.8)',
+                            'rgba(250, 204, 21, 0.8)',
+                            'rgba(239, 68, 68, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // グラフの更新
+        function updateCharts() {
+            if (!charts.daily || !charts.completion) return;
+
+            // 日別進捗データ
+            const last7Days = [];
+            const dailyData = [];
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayLabel = date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+                
+                last7Days.push(dayLabel);
+                
+                const dayTotal = dailyProgress
+                    .filter(p => p.date === dateStr)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                
+                dailyData.push(dayTotal);
+            }
+            
+            charts.daily.data.labels = last7Days;
+            charts.daily.data.datasets[0].data = dailyData;
+            charts.daily.update();
+            
+            // 科目別達成率データ
+            const completionLabels = [];
+            const completionData = [];
+            
+            subjects.forEach(subject => {
+                const total = dailyProgress
+                    .filter(p => p.subject_id === subject.id)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                
+                const percentage = Math.min(100, Math.round((total / subject.target_questions) * 100));
+                
+                completionLabels.push(subject.name);
+                completionData.push(percentage);
+            });
+            
+            charts.completion.data.labels = completionLabels;
+            charts.completion.data.datasets[0].data = completionData;
+            charts.completion.update();
+        }
+
+        // 最終更新時刻の更新
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleString('ja-JP');
+            document.getElementById('lastUpdate').textContent = timeStr;
+        }
+
+        // データ同期
+        function syncData() {
+            const syncModal = document.getElementById('syncModal');
+            syncModal.classList.remove('hidden');
+        }
+
+        // 同期モーダルを閉じる
+        function closeSyncModal() {
+            document.getElementById('syncModal').classList.add('hidden');
+        }
+
+        // 同期設定の保存
+        function saveSyncSettings() {
+            const shareUrl = document.getElementById('shareUrlInput').value;
+            const autoSync = document.getElementById('autoSync').checked;
+            
+            if (shareUrl) {
+                localStorage.setItem('shareUrl', shareUrl);
+                
+                // URLからデータを抽出して読み込む
+                try {
+                    const url = new URL(shareUrl);
+                    const data = url.searchParams.get('data');
+                    if (data) {
+                        loadSharedData(data);
+                    }
+                } catch (error) {
+                    alert('無効なURLです');
+                    return;
+                }
+            }
+            
+            localStorage.setItem('autoSync', autoSync);
+            
+            if (autoSync) {
+                startAutoSync();
+            } else {
+                stopAutoSync();
+            }
+            
+            closeSyncModal();
+        }
+
+        // 自動同期の開始
+        function startAutoSync() {
+            stopAutoSync(); // 既存のインターバルをクリア
+            
+            autoSyncInterval = setInterval(() => {
+                const savedUrl = localStorage.getItem('shareUrl');
+                if (savedUrl) {
+                    try {
+                        const url = new URL(savedUrl);
+                        const data = url.searchParams.get('data');
+                        if (data) {
+                            loadSharedData(data);
+                            console.log('データを自動同期しました');
+                        }
+                    } catch (error) {
+                        console.error('自動同期エラー:', error);
+                    }
+                }
+            }, 30000); // 30秒ごと
+        }
+
+        // 自動同期の停止
+        function stopAutoSync() {
+            if (autoSyncInterval) {
+                clearInterval(autoSyncInterval);
+                autoSyncInterval = null;
+            }
+        }
+    </script>
+</body>
+</html>

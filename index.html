@@ -126,9 +126,9 @@
                     </select>
                     <!-- 並び替え -->
                     <select id="sortSelect" onchange="applySort()" class="border rounded px-3 py-2 text-sm">
-                        <option value="default">デフォルト順</option>
+                        <option value="default">推奨順（達成率順・完了は下）</option>
                         <option value="name">名前順</option>
-                        <option value="progress">進捗率順</option>
+                        <option value="progress">進捗率順（完了含む）</option>
                         <option value="deadline">期限順</option>
                         <option value="remaining">残り数順</option>
                     </select>
@@ -253,8 +253,12 @@
                         共有URL生成
                     </h4>
                     <p class="text-sm text-gray-600 mb-2">現在のデータを閲覧専用で共有できます</p>
-                    <button onclick="generateShareUrl()" class="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    <button onclick="generateShareUrl()" class="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-2">
                         共有URLを生成
+                    </button>
+                    <button onclick="openShareView()" class="w-full bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                        <i class="fas fa-external-link-alt mr-2"></i>
+                        共有ビューを開く
                     </button>
                     <div id="shareUrlDisplay" class="hidden mt-2 p-2 bg-gray-100 rounded text-xs break-all"></div>
                 </div>
@@ -588,7 +592,30 @@
             }
             
             // ソート適用
-            if (currentSort !== 'default') {
+            if (currentSort === 'default') {
+                // デフォルト: 完了済みは下、未完了は達成率順
+                displaySubjects.sort((a, b) => {
+                    const aTotal = dailyProgress.filter(p => p.subject_id === a.id)
+                        .reduce((sum, p) => sum + p.completed_count, 0);
+                    const bTotal = dailyProgress.filter(p => p.subject_id === b.id)
+                        .reduce((sum, p) => sum + p.completed_count, 0);
+                    
+                    const aPercentage = Math.min(100, Math.round((aTotal / a.target_questions) * 100));
+                    const bPercentage = Math.min(100, Math.round((bTotal / b.target_questions) * 100));
+                    
+                    // 100%の科目を下に
+                    if (aPercentage === 100 && bPercentage !== 100) return 1;
+                    if (aPercentage !== 100 && bPercentage === 100) return -1;
+                    
+                    // 両方100%の場合は名前順
+                    if (aPercentage === 100 && bPercentage === 100) {
+                        return a.name.localeCompare(b.name);
+                    }
+                    
+                    // 両方100%未満の場合は達成率が高い順
+                    return bPercentage - aPercentage;
+                });
+            } else if (currentSort !== 'default') {
                 displaySubjects.sort((a, b) => {
                     const aTotal = dailyProgress.filter(p => p.subject_id === a.id)
                         .reduce((sum, p) => sum + p.completed_count, 0);
@@ -1168,6 +1195,22 @@
             const sortValue = document.getElementById('sortSelect').value;
             currentSort = sortValue;
             updateSubjectsList();
+        }
+        
+        // 共有ビューを開く
+        function openShareView() {
+            // 現在のデータで共有URLを生成
+            const shareData = {
+                subjects: subjects,
+                dailyProgress: dailyProgress
+            };
+            
+            const compressed = compressData(shareData);
+            const encodedData = btoa(JSON.stringify(compressed));
+            
+            // 共有ビューページを新しいタブで開く
+            const shareUrl = `share.html?data=${encodedData}`;
+            window.open(shareUrl, '_blank');
         }
         
         // データリセット
