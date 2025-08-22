@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>機能テストツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">機能テストツール</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">テスト項目</h2>
+            <div id="testResults" class="space-y-4"></div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <button onclick="runAllTests()" class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600">
+                全テスト実行
+            </button>
+            <button onclick="window.location.href='index.html'" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 ml-2">
+                メインアプリに戻る
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const testCases = [
+            {
+                name: "LocalStorage アクセステスト",
+                test: () => {
+                    try {
+                        localStorage.setItem('test', 'value');
+                        const value = localStorage.getItem('test');
+                        localStorage.removeItem('test');
+                        return value === 'value';
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            },
+            {
+                name: "データ保存テスト",
+                test: () => {
+                    try {
+                        const testData = {
+                            subjects: [{id: 1, name: "テスト科目", target_questions: 100, deadline: "2024-12-31", unit: "問"}],
+                            dailyProgress: [{id: 1, subject_id: 1, date: "2024-01-15", completed_count: 10}]
+                        };
+                        localStorage.setItem('studyDashboardSubjects', JSON.stringify(testData.subjects));
+                        localStorage.setItem('studyDashboardProgress', JSON.stringify(testData.dailyProgress));
+                        
+                        const saved1 = JSON.parse(localStorage.getItem('studyDashboardSubjects'));
+                        const saved2 = JSON.parse(localStorage.getItem('studyDashboardProgress'));
+                        
+                        return saved1.length === 1 && saved2.length === 1;
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            },
+            {
+                name: "JSON パース/エンコードテスト",
+                test: () => {
+                    try {
+                        const data = {test: "データ", number: 123, array: [1,2,3]};
+                        const json = JSON.stringify(data);
+                        const parsed = JSON.parse(json);
+                        return parsed.test === "データ" && parsed.number === 123 && parsed.array.length === 3;
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            },
+            {
+                name: "Base64 エンコード/デコードテスト",
+                test: () => {
+                    try {
+                        const data = {subjects: [], dailyProgress: []};
+                        const encoded = btoa(JSON.stringify(data));
+                        const decoded = JSON.parse(atob(encoded));
+                        return decoded.subjects.length === 0 && decoded.dailyProgress.length === 0;
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            },
+            {
+                name: "日付フォーマットテスト",
+                test: () => {
+                    try {
+                        const date = new Date();
+                        const dateStr = date.toISOString().split('T')[0];
+                        return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            },
+            {
+                name: "データ型検証テスト",
+                test: () => {
+                    try {
+                        const subject = {
+                            id: Date.now(),
+                            name: "テスト",
+                            target_questions: 100,
+                            deadline: "2024-12-31",
+                            unit: "問"
+                        };
+                        return typeof subject.id === 'number' &&
+                               typeof subject.name === 'string' &&
+                               typeof subject.target_questions === 'number' &&
+                               typeof subject.deadline === 'string' &&
+                               typeof subject.unit === 'string';
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            },
+            {
+                name: "共有URL長さテスト",
+                test: () => {
+                    try {
+                        const data = {
+                            subjects: Array(10).fill(null).map((_, i) => ({
+                                id: i,
+                                name: `科目${i}`,
+                                target_questions: 1000,
+                                deadline: "2024-12-31",
+                                unit: "問"
+                            })),
+                            dailyProgress: []
+                        };
+                        const encoded = btoa(JSON.stringify(data));
+                        const url = `https://yuzu1128.github.io/Yuzu-project/?data=${encoded}`;
+                        console.log(`URL長: ${url.length}文字`);
+                        return url.length < 8000; // URLの最大長チェック
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            },
+            {
+                name: "エラーハンドリングテスト",
+                test: () => {
+                    try {
+                        // 無効なJSON
+                        try {
+                            JSON.parse("{invalid json}");
+                            return false;
+                        } catch (e) {
+                            // エラーが正しく発生
+                        }
+                        
+                        // 無効なBase64
+                        try {
+                            atob("!!!invalid base64!!!");
+                            return false;
+                        } catch (e) {
+                            // エラーが正しく発生
+                        }
+                        
+                        return true;
+                    } catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+            }
+        ];
+
+        function runAllTests() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '';
+            
+            let passedCount = 0;
+            let failedCount = 0;
+            
+            testCases.forEach((testCase, index) => {
+                const result = testCase.test();
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `p-4 rounded ${result ? 'bg-green-100' : 'bg-red-100'}`;
+                
+                const icon = result ? '✅' : '❌';
+                const status = result ? 'PASS' : 'FAIL';
+                
+                if (result) {
+                    passedCount++;
+                } else {
+                    failedCount++;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium">${icon} ${testCase.name}</span>
+                        <span class="${result ? 'text-green-600' : 'text-red-600'} font-bold">${status}</span>
+                    </div>
+                `;
+                
+                resultsDiv.appendChild(resultDiv);
+            });
+            
+            // サマリー表示
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'mt-6 p-4 bg-blue-100 rounded';
+            summaryDiv.innerHTML = `
+                <h3 class="font-bold text-lg mb-2">テスト結果サマリー</h3>
+                <p>合格: ${passedCount}/${testCases.length}</p>
+                <p>失敗: ${failedCount}/${testCases.length}</p>
+                <p>成功率: ${Math.round((passedCount / testCases.length) * 100)}%</p>
+            `;
+            resultsDiv.appendChild(summaryDiv);
+        }
+
+        // ページ読み込み時に自動実行
+        window.addEventListener('DOMContentLoaded', () => {
+            runAllTests();
+        });
+    </script>
+</body>
+</html>
