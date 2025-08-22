@@ -115,10 +115,32 @@
                     <i class="fas fa-books mr-2"></i>
                     科目一覧
                 </h2>
-                <button id="addSubjectBtn" onclick="openAddSubjectModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">
-                    <i class="fas fa-plus mr-2"></i>
-                    科目追加
-                </button>
+                <div class="flex gap-2">
+                    <!-- フィルター -->
+                    <select id="filterSelect" onchange="applyFilter()" class="border rounded px-3 py-2 text-sm">
+                        <option value="all">すべて表示</option>
+                        <option value="incomplete">未完了のみ</option>
+                        <option value="complete">完了済み</option>
+                        <option value="deadline-near">期限が近い</option>
+                        <option value="deadline-over">期限切れ</option>
+                    </select>
+                    <!-- 並び替え -->
+                    <select id="sortSelect" onchange="applySort()" class="border rounded px-3 py-2 text-sm">
+                        <option value="default">デフォルト順</option>
+                        <option value="name">名前順</option>
+                        <option value="progress">進捗率順</option>
+                        <option value="deadline">期限順</option>
+                        <option value="remaining">残り数順</option>
+                    </select>
+                    <!-- 履歴ボタン -->
+                    <button onclick="openHistoryModal()" class="bg-indigo-500 text-white px-3 py-2 rounded hover:bg-indigo-600 transition text-sm">
+                        <i class="fas fa-history"></i>
+                    </button>
+                    <button id="addSubjectBtn" onclick="openAddSubjectModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">
+                        <i class="fas fa-plus mr-2"></i>
+                        科目追加
+                    </button>
+                </div>
             </div>
             
             <div id="subjectsList" class="space-y-4">
@@ -186,6 +208,34 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- 進捗履歴モーダル -->
+    <div id="historyModal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="modal-backdrop absolute inset-0" onclick="closeHistoryModal()"></div>
+        <div class="bg-white rounded-lg p-6 w-full max-w-4xl relative z-10 slide-up max-h-[80vh] overflow-y-auto">
+            <h3 class="text-xl font-semibold mb-4">
+                <i class="fas fa-history mr-2"></i>
+                進捗履歴
+            </h3>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">科目を選択</label>
+                <select id="historySubjectSelect" onchange="updateHistoryDisplay()" class="w-full border rounded px-3 py-2">
+                    <option value="all">すべての科目</option>
+                </select>
+            </div>
+            
+            <div id="historyContent" class="space-y-2">
+                <!-- 履歴がここに表示される -->
+            </div>
+            
+            <div class="flex justify-end mt-4">
+                <button onclick="closeHistoryModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                    閉じる
+                </button>
+            </div>
         </div>
     </div>
 
@@ -273,6 +323,8 @@
         let dailyProgress = [];
         let charts = {};
         let isSharedMode = false;
+        let currentFilter = 'all';
+        let currentSort = 'default';
 
         // 初期化
         document.addEventListener('DOMContentLoaded', function() {
@@ -505,17 +557,76 @@
         function updateSubjectsList() {
             const container = document.getElementById('subjectsList');
             
-            if (subjects.length === 0) {
+            let displaySubjects = [...subjects];
+            
+            // フィルター適用
+            if (currentFilter !== 'all') {
+                displaySubjects = displaySubjects.filter(subject => {
+                    const totalCompleted = dailyProgress
+                        .filter(p => p.subject_id === subject.id)
+                        .reduce((sum, p) => sum + p.completed_count, 0);
+                    const percentage = Math.min(100, Math.round((totalCompleted / subject.target_questions) * 100));
+                    const isComplete = totalCompleted >= subject.target_questions;
+                    
+                    const deadline = new Date(subject.deadline);
+                    const now = new Date();
+                    const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+                    
+                    switch (currentFilter) {
+                        case 'incomplete':
+                            return !isComplete;
+                        case 'complete':
+                            return isComplete;
+                        case 'deadline-near':
+                            return daysRemaining <= 7 && daysRemaining > 0;
+                        case 'deadline-over':
+                            return daysRemaining < 0;
+                        default:
+                            return true;
+                    }
+                });
+            }
+            
+            // ソート適用
+            if (currentSort !== 'default') {
+                displaySubjects.sort((a, b) => {
+                    const aTotal = dailyProgress.filter(p => p.subject_id === a.id)
+                        .reduce((sum, p) => sum + p.completed_count, 0);
+                    const bTotal = dailyProgress.filter(p => p.subject_id === b.id)
+                        .reduce((sum, p) => sum + p.completed_count, 0);
+                    
+                    const aPercentage = Math.min(100, Math.round((aTotal / a.target_questions) * 100));
+                    const bPercentage = Math.min(100, Math.round((bTotal / b.target_questions) * 100));
+                    
+                    const aRemaining = Math.max(0, a.target_questions - aTotal);
+                    const bRemaining = Math.max(0, b.target_questions - bTotal);
+                    
+                    switch (currentSort) {
+                        case 'name':
+                            return a.name.localeCompare(b.name);
+                        case 'progress':
+                            return bPercentage - aPercentage;
+                        case 'deadline':
+                            return new Date(a.deadline) - new Date(b.deadline);
+                        case 'remaining':
+                            return aRemaining - bRemaining;
+                        default:
+                            return 0;
+                    }
+                });
+            }
+            
+            if (displaySubjects.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-8 text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
-                        <p>科目がまだ登録されていません</p>
+                        <p>表示する科目がありません</p>
                     </div>
                 `;
                 return;
             }
             
-            container.innerHTML = subjects.map(subject => {
+            container.innerHTML = displaySubjects.map(subject => {
                 const totalCompleted = dailyProgress
                     .filter(p => p.subject_id === subject.id)
                     .reduce((sum, p) => sum + p.completed_count, 0);
@@ -634,9 +745,28 @@
             const total = dailyProgress
                 .reduce((sum, p) => sum + p.completed_count, 0);
             
-            document.getElementById('todayProgress').textContent = `${todayTotal}問`;
-            document.getElementById('weekProgress').textContent = `${weekTotal}問`;
-            document.getElementById('totalProgress').textContent = `${total}問`;
+            // 平均進捗率を計算
+            let totalPercentage = 0;
+            let completedCount = 0;
+            subjects.forEach(subject => {
+                const subjectTotal = dailyProgress
+                    .filter(p => p.subject_id === subject.id)
+                    .reduce((sum, p) => sum + p.completed_count, 0);
+                const percentage = Math.min(100, Math.round((subjectTotal / subject.target_questions) * 100));
+                totalPercentage += percentage;
+                if (percentage === 100) completedCount++;
+            });
+            const avgPercentage = subjects.length > 0 ? Math.round(totalPercentage / subjects.length) : 0;
+            
+            document.getElementById('todayProgress').textContent = `${todayTotal}`;
+            document.getElementById('weekProgress').textContent = `${weekTotal}`;
+            document.getElementById('totalProgress').textContent = `${total}`;
+            
+            // 平均進捗率を表示（要素が存在する場合）
+            const avgElement = document.getElementById('avgProgress');
+            if (avgElement) {
+                avgElement.textContent = `${avgPercentage}%`;
+            }
         }
 
         // グラフ初期化
@@ -941,6 +1071,103 @@
             
             alert(message);
             console.log(message);
+        }
+        
+        // 履歴モーダルを開く
+        function openHistoryModal() {
+            const modal = document.getElementById('historyModal');
+            const select = document.getElementById('historySubjectSelect');
+            
+            // 科目選択オプションを更新
+            select.innerHTML = '<option value="all">すべての科目</option>';
+            subjects.forEach(subject => {
+                const option = document.createElement('option');
+                option.value = subject.id;
+                option.textContent = subject.name;
+                select.appendChild(option);
+            });
+            
+            modal.classList.remove('hidden');
+            updateHistoryDisplay();
+        }
+        
+        // 履歴モーダルを閉じる
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+        
+        // 履歴表示を更新
+        function updateHistoryDisplay() {
+            const select = document.getElementById('historySubjectSelect');
+            const content = document.getElementById('historyContent');
+            const selectedId = select.value;
+            
+            let filteredProgress = dailyProgress;
+            if (selectedId !== 'all') {
+                filteredProgress = dailyProgress.filter(p => p.subject_id == selectedId);
+            }
+            
+            // 日付でグループ化
+            const groupedByDate = {};
+            filteredProgress.forEach(progress => {
+                if (!groupedByDate[progress.date]) {
+                    groupedByDate[progress.date] = [];
+                }
+                groupedByDate[progress.date].push(progress);
+            });
+            
+            // 日付を降順でソート
+            const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a));
+            
+            if (sortedDates.length === 0) {
+                content.innerHTML = '<p class="text-gray-500 text-center py-4">履歴がありません</p>';
+                return;
+            }
+            
+            content.innerHTML = sortedDates.map(date => {
+                const dayProgress = groupedByDate[date];
+                const totalCount = dayProgress.reduce((sum, p) => sum + p.completed_count, 0);
+                
+                return `
+                    <div class="border rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-semibold">
+                                <i class="fas fa-calendar-day mr-2"></i>
+                                ${date}
+                            </h4>
+                            <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                                合計: ${totalCount}
+                            </span>
+                        </div>
+                        <div class="space-y-1">
+                            ${dayProgress.map(p => {
+                                const subject = subjects.find(s => s.id === p.subject_id);
+                                if (!subject) return '';
+                                return `
+                                    <div class="flex justify-between items-center text-sm">
+                                        <span class="text-gray-600">${subject.name}</span>
+                                        <span class="font-medium">${p.completed_count}${subject.unit}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // フィルター適用
+        function applyFilter() {
+            const filterValue = document.getElementById('filterSelect').value;
+            currentFilter = filterValue;
+            updateSubjectsList();
+        }
+        
+        // ソート適用
+        function applySort() {
+            const sortValue = document.getElementById('sortSelect').value;
+            currentSort = sortValue;
+            updateSubjectsList();
         }
         
         // データリセット
