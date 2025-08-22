@@ -6,7 +6,7 @@
     <title>学習進捗管理ダッシュボード（完全版）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         .progress-ring {
@@ -296,7 +296,20 @@
             }
             
             updateDisplay();
-            initCharts();
+            
+            // Chart.jsが読み込まれるまで待つ
+            if (typeof Chart !== 'undefined') {
+                initCharts();
+            } else {
+                // Chart.jsがまだ読み込まれていない場合、少し待ってから再試行
+                setTimeout(() => {
+                    if (typeof Chart !== 'undefined') {
+                        initCharts();
+                    } else {
+                        console.warn('Chart.js could not be loaded');
+                    }
+                }, 1000);
+            }
         }
 
         // 編集機能の無効化
@@ -554,6 +567,12 @@
             // Chart.jsが読み込まれていない場合はスキップ
             if (typeof Chart === 'undefined') {
                 console.error('Chart.js is not loaded');
+                return;
+            }
+            
+            // 既に初期化済みの場合はスキップ
+            if (charts.daily && charts.completion) {
+                updateCharts();
                 return;
             }
             
